@@ -1,0 +1,395 @@
+<html>
+<head>
+  <title>Security Lectures by Prabhaker Mateti</title>
+  <meta name="author" content="Prabhaker Mateti">
+  <meta name="keywords" 
+	content="Buffer Overflow, Stack Smashing, Heap Overflow,
+	Format String Attacks, Internet security,">
+  <meta name="description" 
+	content="This page is part of a set of lectures notes for a
+		 course on Internet Security by Prabhaker Mateti
+		 http://www.cs.wright.edu/~pmateti/">
+  <meta http-equiv="Content-Style-Type" content="text/css">
+  <style type="text/css">
+  a:hover { color: blue; background-color: yellow; }
+  a:active{ color: white; background-color: green;}
+  P, li { text-align: justify; }
+  tt, code, pre {border:brown 1px dotted;}
+  @page { size: 8.5in 11in }
+  @media screen {BODY {margin: 10%;} }
+  body {margin: 10%; counter-reset: h2;}
+  h1 { counter-reset: h2; }
+  h2 { counter-reset: h3; }
+  h2:before { content: counter(h2) ". "; counter-increment: h2;}
+  h3:before { content: counter(h2) "." counter(h3) ". "; counter-increment: h3;}
+  </style>
+</head>
+
+<body>
+<h1>Modifying the Return Address, Etc</h1>
+
+
+<blockquote>
+<p>These notes were taken in Auditor [an old (2008?) Backtrack
+ distribution that did not enable "stack protection" measures; see the
+ Refs] running for real (not in a VM) on my old Acer 602 laptop with
+ Pentium III running Debian GNU/Linux 3.1, gcc version 3.3.5 (Debian
+ 1:3.3.5-2) generating code for i486-linux.  The overall context of
+ these notes is the
+ <a href= "alephOne-phrack-1996.html"> Phrack article by Aleph One</a>.
+</blockquote>
+
+<h2>modret.c</h2>
+
+<p>The following little program is designed to illustrate
+modifying the stack-resident return address deposited by the x86 (32-
+or 64-bit) CPU on executing a call instruction.  Use the gcc
+invocations embedded in the src code.  It should compile and build
+  without any errors or warnings.
+
+<p>Invoke as in <code>./modret z</code>, with a well chosen
+ non-negative integer z.  We would expect the bottom printf to print
+ x=66.  We see that in main(), x is incremented three times, and its
+ final value ought to be 0x11+0x22+0x33 == 0x66.  Our goal is to
+ discover values for z (argv[1]) so that x=11, or x=44 is printed.
+ [On a modern Linux distro, we have to learn how to manually disable
+ stack smashing protection, before attempting this discovery.]
+<p></p>
+
+<!-- HTML generated using hilite.me -->
+<table width=100%><tr><td><pre> 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40</pre></td><td><pre><span style="color: #888888">/* file: modret.c by pmateti@wright.edu; </span>
+<span style="color: #888888"> * modify return address to see the effects</span>
+<span style="color: #888888"> */</span>
+
+<span style="color: #888888">/* assembly listing: gcc -Wa,-alh,-L  modret.c &gt; modret-asm.txt */</span>
+<span style="color: #888888">/* normal compile: gcc -o modret modret.c */</span>
+
+<span style="color: #557799">#include &amp;lt;stdio.h&gt;</span>
+<span style="color: #557799">#include &amp;lt;stdlib.h&gt;</span>
+
+<span style="color: #333399; font-weight: bold">void</span> <span style="color: #0066BB; font-weight: bold">modret</span>(<span style="color: #333399; font-weight: bold">int</span> a, <span style="color: #333399; font-weight: bold">int</span> b, <span style="color: #333399; font-weight: bold">int</span> c) {
+  <span style="color: #333399; font-weight: bold">unsigned</span> <span style="color: #333399; font-weight: bold">int</span> d <span style="color: #333333">=</span> <span style="color: #005588; font-weight: bold">0x89abcdef</span>; <span style="color: #888888">/* just a recognizable number */</span>
+  <span style="color: #333399; font-weight: bold">unsigned</span> <span style="color: #333399; font-weight: bold">int</span> <span style="color: #333333">*</span>zp <span style="color: #333333">=</span> <span style="color: #333333">&amp;</span>a <span style="color: #333333">-</span> <span style="color: #0000DD; font-weight: bold">3</span>;
+  <span style="color: #333399; font-weight: bold">unsigned</span> <span style="color: #333399; font-weight: bold">int</span> i;
+
+  <span style="color: #008800; font-weight: bold">for</span> (i <span style="color: #333333">=</span> <span style="color: #0000DD; font-weight: bold">0</span>; i <span style="color: #333333">&lt;</span> <span style="color: #0000DD; font-weight: bold">8</span>; i<span style="color: #333333">++</span>)
+    printf(<span style="background-color: #fff0f0">&quot;%x:%x, &quot;</span>, i, zp[i]);  <span style="color: #888888">/* so we can see some stack contents */</span>
+
+  zp[<span style="color: #0000DD; font-weight: bold">2</span>] <span style="color: #333333">+=</span> a;                     <span style="color: #888888">/* modifying a stack location */</span>
+}
+
+<span style="color: #333399; font-weight: bold">int</span> <span style="color: #0066BB; font-weight: bold">main</span>(<span style="color: #333399; font-weight: bold">int</span> argc, <span style="color: #333399; font-weight: bold">char</span> <span style="color: #333333">*</span>argv[]) {
+  <span style="color: #333399; font-weight: bold">int</span> x <span style="color: #333333">=</span> <span style="color: #0000DD; font-weight: bold">0</span>, y <span style="color: #333333">=</span> <span style="color: #0000DD; font-weight: bold">0</span>;
+  <span style="color: #008800; font-weight: bold">if</span> (argc <span style="color: #333333">&gt;</span> <span style="color: #0000DD; font-weight: bold">1</span>)
+    y <span style="color: #333333">=</span> atoi(argv[<span style="color: #0000DD; font-weight: bold">1</span>]);
+
+  x <span style="color: #333333">+=</span> <span style="color: #005588; font-weight: bold">0x11</span>;
+
+  modret(y, <span style="color: #005588; font-weight: bold">0x234</span>, <span style="color: #005588; font-weight: bold">0x567</span>);
+
+  x <span style="color: #333333">+=</span> <span style="color: #005588; font-weight: bold">0x22</span>;
+
+  x <span style="color: #333333">+=</span> <span style="color: #005588; font-weight: bold">0x33</span>;
+
+  printf(<span style="background-color: #fff0f0">&quot;</span><span style="color: #666666; font-weight: bold; background-color: #fff0f0">\n</span><span style="background-color: #fff0f0"> main==%p, &amp;x==%p, &amp;y==%p; x=%x</span><span style="color: #666666; font-weight: bold; background-color: #fff0f0">\n</span><span style="background-color: #fff0f0">&quot;</span>, main, <span style="color: #333333">&amp;</span>x, <span style="color: #333333">&amp;</span>y, x);
+
+  <span style="color: #008800; font-weight: bold">return</span> <span style="color: #0000DD; font-weight: bold">0</span>;
+}
+
+<span style="color: #888888">/* -eof- */</span>
+</pre></td></tr></table></div>
+
+<h3>modret(a, b, c)</h3>
+
+<p>Note that (i) d is at zp[0], (ii) zp[1] is presumably the SFP
+  (stack frame pointer), (iii) the return address pushed by the CALL
+  instruction is at zp[2], (iv) first arg a to modret() is at zp[3],
+  (v) the address of main() happened to be 0x8048404, (vi) the address
+  of local variable x is also shown, but as we will see this will keep
+  changing, (viii) the address of local variable y is 4 bytes below
+  that of x.
+
+<h3>modret.c asm listing</h3>
+
+<p>Here is the <a href="./modret-asm.txt">asm listing</a> as produced by 
+<tt>gcc -Wa,-alh,-L  modret.c > modret-asm.txt</tt> in Ubuntu 4.9.2-10.
+Note that GAS (Gnu Assembler) syntax differs from Intel ASM.  In
+particular, the mov a, b of GAS copies a into b.
+
+
+
+<h3>./modret z</h3>
+
+<p>Interesting arguments to try with the modret program are 0, 6, and
+12, whose results are described below.  These numbers were discovered
+by examining the generated assembly code (shown above).  Other values
+are illegal, but explaining the resulting behavior (normal looking
+outut and/or segmentation faults) needs an understanding of CPU
+instructions.
+
+<p>Note: All numbers printed are in hex.  Some output lines are folded
+in this web page.  You should compile as in <tt>gcc -o modret
+modret.c</tt>.  Run modret as shown in the bash prompted (%) lines.
+
+<p>[You would get similar results if you run within Auditor in a VM.]
+
+
+  <ol>
+    <li>
+<pre>
+% ./modret 0
+
+0:89abcdef, 1:bffffa98, 2:8048481, 3:0, 4:234, 5:567, 6:80484db, 7:b7fd4fcc, 
+ main==8048429, &x==bffffa94, &y==bffffa90; x=66
+</pre>
+
+<p>
+Return Address unchanged.  So, x == 66 as seen from the typical
+reading of the code.
+
+    <li>
+<pre>
+% ./modret 6
+0:89abcdef, 1:bffffa98, 2:8048481, 3:6, 4:234, 5:567, 6:80484db, 7:b7fd4fcc,
+ main==8048429, &x==bffffa94, &y==bffffa90; x=44
+</pre>
+
+<p>Return Address did change: Incremented by 6, skipping the
+code for x += 0x22.  Resulting x is 44.
+
+    <li>
+<pre>
+% ./modret 12
+0:89abcdef, 1:bffffa98, 2:8048481, 3:c, 4:234, 5:567, 6:80484db, 7:b7fd4fcc,
+ main==8048429, &x==bffffa94, &y==bffffa90; x=11
+</pre>
+
+<p>Return Address changed: Incremented by 12, skipping the code for x
++= 0x22, and x += 0x33.  Resulting x is 11.
+
+  <li>Here are some values that do not work out.  A segmentation fault
+    occurs when your process used an address that is beyond the
+    virtual memory segment it has rights to access.
+
+<pre>
+% ./modret 9
+Segmentation fault
+% ./modret 8
+Segmentation fault
+</pre>
+
+  <li> Does produce the "right" results, but ...
+<pre>
+% ./modret 10
+0:89abcdef, 1:bffffa98, 2:8048481, 3:a, 4:234, 5:567, 6:80484db, 7:b7fd4fcc,
+ main==8048429, &x==bffffa94, &y==bffffa90; x=11
+</pre>
+
+</ol>
+
+<h2>AlephOne Code Development</h2>
+
+The following testsc, etc. are from <a href=
+"alephOne-phrack-1996.html"> Phrack article by Aleph One</a>.  Recall
+that these are results captured on an old laptop, where my PS1
+was <tt>knoppix@2[2008]$ </tt> in the parent shell.  Notice the change
+in the prompt string that happens in the child shell.
+
+<p> <a href="AlephOne">Extracted Code</a> from AlephOne's article.
+
+<h3>testsc</h3>
+
+
+
+<pre>knoppix@2[2008]$ ./testsc
+sh-3.00$ ps
+  PID TTY          TIME CMD
+ 3656 pts/2    00:00:00 bash
+ 3793 pts/2    00:00:00 sh
+ 3794 pts/2    00:00:00 ps
+</pre>
+
+<p>
+Works as can be seen above.
+ 
+<h3>exploit1</h3>
+ 
+<pre>knoppix@2[2008]$ ./exploit1
+sh-3.00$ ps
+  PID TTY          TIME CMD
+ 3656 pts/2    00:00:00 bash
+ 3804 pts/2    00:00:00 sh
+ 3805 pts/2    00:00:00 ps
+sh-3.00$     
+</pre>
+explot1.c as was.  Works.
+
+<h3>exploit2</h3>
+
+<pre>
+knoppix@2[2008]$ ./exploit2
+Using address: 0xbffffa68
+knoppix@2[2008]$ ps
+  PID TTY          TIME CMD
+ 3656 pts/2    00:00:00 bash
+ 3827 pts/2    00:00:00 exploit2
+ 3828 pts/2    00:00:00 bash
+ 3840 pts/2    00:00:00 ps
+knoppix@2[2008]$                
+</pre>
+<p>
+explot2.c as was.  Works.  Did not change PS1. You should figure out
+why it did not.
+
+Below, we change PS1 to '; '
+
+<pre>knoppix@2[2008]$ PS1='; '
+; ./exploit2
+Using address: 0xbffffa68
+knoppix@2[2008]$ ps
+  PID TTY          TIME CMD
+ 3656 pts/2    00:00:00 bash
+ 3842 pts/2    00:00:00 exploit2
+ 3843 pts/2    00:00:00 bash
+ 3855 pts/2    00:00:00 ps
+knoppix@2[2008]$                
+</pre>
+
+<p>
+explot2.c as was.  Works.
+
+<h3>exploit3</h3>
+
+<p>The exploit3 can take two non-negative integer arguments.  Below we
+  invoked it with no args.
+
+<pre>; ./exploit3
+Using address: 0xbffffa58
+knoppix@2[2008]$ ps
+  PID TTY          TIME CMD
+ 3656 pts/2    00:00:00 bash
+ 3869 pts/2    00:00:00 exploit3
+ 3870 pts/2    00:00:00 bash
+ 3882 pts/2    00:00:00 ps
+</pre>
+<p>Recall that exploit3 introduces the EGG into the child shell environment.
+<pre>
+knoppix@2[2008]$ ./vulnerable $EGG
+bffff4a0
+knoppix@2[2008]$ ps
+  PID TTY          TIME CMD
+ 3656 pts/2    00:00:00 bash
+ 3869 pts/2    00:00:00 exploit3
+ 3870 pts/2    00:00:00 bash
+ 3884 pts/2    00:00:00 ps
+knoppix@2[2008]$
+</pre>
+
+<p>
+Did  not work.  We expected to see <tt>sh</tt>.
+
+<pre>; PS1='; '
+; ./exploit3 612
+Using address: 0xbffffa58
+knoppix@2[2008]$ ./vulnerable $EGG
+bffff3e0
+Segmentation fault
+knoppix@2[2008]$
+</pre>
+<p>
+Buffer size 612 worked in AlephOne's paper.  But not for us.
+
+<p>
+We try a few different arguments while noticing the Using address
+value.  It should be close enough to the buffer address printed by our
+version of vulnerable.c
+
+<pre>
+; ./exploit3 700  1500
+Using address: 0xbffff46c
+knoppix@2[2008]$ ./vulnerable $EGG
+bffff330
+sh-3.00$ ps
+  PID TTY          TIME CMD
+ 3656 pts/2    00:00:00 bash
+ 3971 pts/2    00:00:00 exploit3
+ 3972 pts/2    00:00:00 bash
+ 3984 pts/2    00:00:00 sh
+ 3985 pts/2    00:00:00 ps
+sh-3.00$
+</pre>
+Worked!
+
+<h1>References</h1>
+<ol>
+    <li>Aleph One, "Smashing The Stack For Fun And Profit," Phrack,
+    1996, Vol 7, Issue 49, File 14 of 16, <a href=
+    "http://www.phrack.com">www. phrack.com</a>. A classic article.
+    The original paper, <a href="./AlephOne/p49-14.txt">local
+    copy</a>, has a few inaccuracies; <a href=
+    "alephOne-phrack-1996.html"> alephOne-phrack-1996.html</a> is the
+    version of this paper with my corrections in place. Required
+    Reading.</li>
+
+  <li>
+    <tt>auditor-250405-01.iso</tt> An old (2008?) Backtrack Linux
+    distribution that did not enable "stack protection" measures.  Web
+    search for it.  Here is a
+    <a href= "http://cecs.wright.edu/~pmateti/Courses/4420/BufferOverflow/auditor-250405-01.iso">
+       Local Copy
+       </a>, but not guaranteed to exist.
+  <li>
+    <a href="../../Labs/vm-setup.html">
+  VM setup</a> Virtual Machine Setups for Stack Smashing/ Buffer Overflow
+  Lab
+
+</ol>
+<p>
+-eof-
+  <hr size="1">
+  <a href=http://cecs.wright.edu/~pmateti/copyright.html>
+    Copyright &copy;</a> 2016
+  <a href="http://www.cs.wright.edu/~pmateti">Prabhaker Mateti</a>
+  &bull; <a href=http://cecs.wright.edu/~pmateti/Courses/4440/Top/>
+Security Lectures</a>
+</body>
+</html>
